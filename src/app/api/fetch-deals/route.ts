@@ -36,12 +36,96 @@ async function fetchCheapSharkDeals(limit: number): Promise<GameDealFromAPI[]> {
     // Fetch more deals than requested to allow for filtering
     const fetchLimit = limit * 3;
     
+    // We'll make multiple requests to get a diverse set of deals
+    const requests = [
+      // Recent deals (newest first)
+      fetchDealsWithParams({
+        pageSize: fetchLimit.toString(),
+        sortBy: 'recent',
+        onSale: 'true',
+        desc: '0'
+      }),
+      // Best savings (highest discount first)
+      fetchDealsWithParams({
+        pageSize: fetchLimit.toString(),
+        sortBy: 'savings',
+        onSale: 'true',
+        desc: '0' 
+      }),
+      // Highly rated deals (best ratings first)
+      fetchDealsWithParams({
+        pageSize: Math.floor(fetchLimit / 2).toString(),
+        sortBy: 'metacritic',
+        metacritic: '80',
+        onSale: 'true',
+        desc: '0'
+      }),
+      // Free games
+      fetchDealsWithParams({
+        pageSize: Math.floor(fetchLimit / 3).toString(),
+        upperPrice: '0',
+        desc: '0'
+      })
+    ];
+    
+    // Execute all requests in parallel
+    console.log(`🔄 Making multiple requests to CheapShark API for diverse deals...`);
+    const results = await Promise.all(requests);
+    
+    // Combine and deduplicate results
+    const allDeals = results.flat();
+    console.log(`✅ Received ${allDeals.length} total deals (before deduplication)`);
+    
+    // Deduplicate deals by dealID
+    const dedupedDeals = Array.from(
+      new Map(allDeals.map(deal => [deal.dealID, deal])).values()
+    );
+    console.log(`✅ Deduplicated to ${dedupedDeals.length} unique deals`);
+    
+    // Apply filters for quality
+    const filteredDeals = dedupedDeals
+      // Only include deals with images
+      .filter((deal) => deal.thumb)
+      // Only include deals with good savings (unless they're free)
+      .filter((deal) => 
+        parseFloat(deal.salePrice) === 0 || 
+        parseFloat(deal.savings) >= MIN_SAVINGS_PERCENT
+      )
+      // Sort by a combination of recency and savings
+      .sort((a, b) => {
+        // Prioritize free games
+        if (parseFloat(a.salePrice) === 0 && parseFloat(b.salePrice) !== 0) return -1;
+        if (parseFloat(a.salePrice) !== 0 && parseFloat(b.salePrice) === 0) return 1;
+        
+        // Then sort by savings percentage
+        return parseFloat(b.savings) - parseFloat(a.savings);
+      })
+      // Limit to requested number
+      .slice(0, limit);
+    
+    console.log(`⭐ Filtered to ${filteredDeals.length} high-quality deals`);
+    
+    // Transform raw deals into our application format
+    return filteredDeals.map(transformDealToAppFormat);
+  } catch (error) {
+    console.error('❌ Error fetching CheapShark deals:', error);
+    return [];
+  }
+}
+
+/**
+ * Fetches deals from CheapShark API with specific parameters
+ * 
+ * @param params - Query parameters for the CheapShark API
+ * @returns Promise resolving to an array of raw game deals
+ */
+async function fetchDealsWithParams(params: Record<string, string>): Promise<any[]> {
+  try {
     // Build the API URL with parameters
     const apiUrl = new URL(CHEAPSHARK_DEALS_ENDPOINT);
-    apiUrl.searchParams.append('pageSize', fetchLimit.toString());
-    apiUrl.searchParams.append('sortBy', 'recent'); // Get the most recent deals
-    apiUrl.searchParams.append('onSale', 'true');   // Only get deals that are actually on sale
-    apiUrl.searchParams.append('steamworks', 'true'); // Prefer Steam games (more reliable data)
+    Object.entries(params).forEach(([key, value]) => {
+      apiUrl.searchParams.append(key, value);
+    });
     
     console.log(`📡 Requesting data from: ${apiUrl.toString()}`);
     
@@ -61,86 +145,78 @@ async function fetchCheapSharkDeals(limit: number): Promise<GameDealFromAPI[]> {
     }
     
     // Parse the response as JSON
-    const cheapSharkDeals = await response.json();
-    console.log(`✅ Received ${cheapSharkDeals.length} raw deals from CheapShark API`);
+    const data = await response.json();
+    console.log(`✅ Received ${data.length} deals from ${apiUrl.toString()}`);
     
-    // Apply multiple quality filters
-    const filteredDeals = cheapSharkDeals
-      // Only include deals with images
-      .filter((deal: any) => deal.thumb)
-      // Only include deals with good savings
-      .filter((deal: any) => parseFloat(deal.savings) >= MIN_SAVINGS_PERCENT)
-      // Only include deals with valid prices
-      .filter((deal: any) => parseFloat(deal.salePrice) > 0)
-      // Sort by highest savings
-      .sort((a: any, b: any) => parseFloat(b.savings) - parseFloat(a.savings))
-      // Limit to requested number
-      .slice(0, limit);
-    
-    console.log(`⭐ Filtered to ${filteredDeals.length} quality deals`);
-    
-    // Transform raw deals into our application format
-    return filteredDeals.map((deal: any) => {
-      // Generate a unique ID using deal information
-      const uniqueId = deal.dealID || `cheapshark-${deal.gameID}-${Date.now()}`;
-      
-      // Generate the appropriate affiliate URL
-      const affiliateUrl = generateAffiliateUrl(
-        uniqueId,
-        deal.storeID,
-        deal.gameID,
-        deal.dealID
-      );
-
-      // Get store name for better display
-      const storeName = getStoreName(deal.storeID);
-      
-      // Create a descriptive message about the deal
-      const savingsPercent = Math.round(parseFloat(deal.savings));
-      const description = createDealDescription(deal.title, storeName, savingsPercent, deal.metacriticScore);
-
-      // Generate a clean, SEO-friendly slug
-      const slug = generateSlug(deal.title, deal.gameID);
-
-      // Format prices consistently
-      const originalPrice = formatPrice(deal.normalPrice);
-      const dealPrice = formatPrice(deal.salePrice);
-      
-      // Create timestamp for better sorting and querying
-      const now = new Date();
-      
-      // Return the formatted deal
-      return {
-        id: uniqueId,
-        title: deal.title,
-        dealID: deal.dealID,
-        imageUrl: deal.thumb,
-        description,
-        originalPrice,
-        dealPrice,
-        affiliateUrl,
-        storeID: deal.storeID,
-        storeName,
-        savings: deal.savings,
-        metacriticScore: deal.metacriticScore,
-        steamRatingPercent: deal.steamRatingPercent,
-        steamRatingCount: deal.steamRatingCount,
-        slug,
-        platform: 'PC',
-        datePosted: now.toISOString(),
-        dateAdded: now.toISOString(),
-        source: 'api',
-        sourceType: 'cheapshark',
-        // Add any additional game metadata if available
-        publisher: deal.publisher || undefined,
-        developer: deal.developer || undefined,
-        releaseDate: deal.releaseDate ? new Date(deal.releaseDate).toISOString() : undefined,
-      };
-    });
+    return data;
   } catch (error) {
-    console.error('❌ Error fetching CheapShark deals:', error);
+    console.error(`❌ Error fetching deals with params ${JSON.stringify(params)}:`, error);
     return [];
   }
+}
+
+/**
+ * Transforms a raw CheapShark deal into our application format
+ * 
+ * @param deal - Raw deal data from CheapShark API
+ * @returns Formatted game deal for our application
+ */
+function transformDealToAppFormat(deal: any): GameDealFromAPI {
+  // Generate a unique ID using deal information
+  const uniqueId = deal.dealID || `cheapshark-${deal.gameID}-${Date.now()}`;
+  
+  // Generate the appropriate affiliate URL
+  const affiliateUrl = generateAffiliateUrl(
+    uniqueId,
+    deal.storeID,
+    deal.gameID,
+    deal.dealID
+  );
+
+  // Get store name for better display
+  const storeName = getStoreName(deal.storeID);
+  
+  // Create a descriptive message about the deal
+  const savingsPercent = Math.round(parseFloat(deal.savings));
+  const description = createDealDescription(deal.title, storeName, savingsPercent, deal.metacriticScore);
+
+  // Generate a clean, SEO-friendly slug
+  const slug = generateSlug(deal.title, deal.gameID);
+
+  // Format prices consistently
+  const originalPrice = formatPrice(deal.normalPrice);
+  const dealPrice = formatPrice(deal.salePrice);
+  
+  // Create timestamp for better sorting and querying
+  const now = new Date();
+  
+  // Return the formatted deal
+  return {
+    id: uniqueId,
+    title: deal.title,
+    dealID: deal.dealID,
+    imageUrl: deal.thumb,
+    description,
+    originalPrice,
+    dealPrice,
+    affiliateUrl,
+    storeID: deal.storeID,
+    storeName,
+    savings: deal.savings,
+    metacriticScore: deal.metacriticScore,
+    steamRatingPercent: deal.steamRatingPercent,
+    steamRatingCount: deal.steamRatingCount,
+    slug,
+    platform: 'PC',
+    datePosted: now.toISOString(),
+    dateAdded: now.toISOString(),
+    source: 'api',
+    sourceType: 'cheapshark',
+    // Add any additional game metadata if available
+    publisher: deal.publisher || undefined,
+    developer: deal.developer || undefined,
+    releaseDate: deal.releaseDate ? new Date(deal.releaseDate).toISOString() : undefined,
+  };
 }
 
 /**

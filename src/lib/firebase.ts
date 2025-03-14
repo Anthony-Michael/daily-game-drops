@@ -82,17 +82,35 @@ export const fetchDealsFromDb = async (limit = 6): Promise<GameDealFromAPI[]> =>
 export const saveDealsToDb = async (deals: Partial<GameDealFromAPI>[]): Promise<boolean> => {
   try {
     const batch = db.batch();
+    const timestamp = new Date();
+    const batchId = `batch_${timestamp.getTime()}`;
+    console.log(`Creating batch ${batchId} with ${deals.length} deals`);
     
     deals.forEach(deal => {
-      // Create a new document with auto-generated ID
-      const docRef = db.collection(dealsCollection).doc();
-      batch.set(docRef, {
+      // Use dealID as the document ID for consistency and to prevent duplicates
+      const docId = deal.dealID || deal.id || `deal_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
+      const docRef = db.collection(dealsCollection).doc(docId);
+      
+      // Prepare the deal data with additional metadata
+      const dealData = {
         ...deal,
-        dateAdded: new Date().toISOString(),
-      });
+        dateAdded: deal.dateAdded || timestamp.toISOString(),
+        lastUpdated: timestamp.toISOString(),
+        batchId: batchId,
+        // Add additional fields for querying and filtering
+        searchableTitle: deal.title?.toLowerCase(),
+        dealActiveTimestamp: timestamp,
+        // Add a TTL field to automatically expire old deals
+        expiresAt: new Date(timestamp.getTime() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
+      };
+      
+      // Set with merge: true to update existing deals rather than overwrite
+      batch.set(docRef, dealData, { merge: true });
     });
     
+    console.log(`Committing batch ${batchId} to Firestore...`);
     await batch.commit();
+    console.log(`Batch ${batchId} successfully committed!`);
     return true;
   } catch (error) {
     console.error('Error saving deals to Firestore:', error);
