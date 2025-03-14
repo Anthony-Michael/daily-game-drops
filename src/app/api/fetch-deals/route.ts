@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { saveDealsToDb, GameDealFromAPI } from '@/lib/firebase';
-import { generateAffiliateUrl, getStoreName } from '@/lib/affiliate';
+import { generateAffiliateUrl, getStoreName } from '@/app/api/detect-store-adapter';
 import { fetchRSSFeeds } from '@/lib/rss';
 import { Timestamp } from 'firebase-admin/firestore';
 

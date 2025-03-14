@@ -2,7 +2,10 @@
 
 import React, { useState } from 'react';
 import { FaShoppingCart, FaInfoCircle } from 'react-icons/fa';
-import { getAffiliateLinkAttributes, addTrackingParameters, getAffiliateDisclosure } from '@/lib/affiliate';
+
+// Import the client functions directly instead of using named imports
+// This helps avoid the "a.default" import pattern that's causing errors
+import affiliateClient from '@/lib/affiliate-client';
 
 interface AffiliateButtonProps {
   url: string;
@@ -49,14 +52,49 @@ export default function AffiliateButton({
 }: AffiliateButtonProps) {
   const [showTooltip, setShowTooltip] = useState(false);
   
+  // Safely access the affiliate client functions
+  const getLinkAttributes = () => {
+    try {
+      return affiliateClient.getAffiliateLinkAttributes();
+    } catch (e) {
+      console.warn("Fallback: Could not get affiliate link attributes", e);
+      return {
+        target: '_blank',
+        rel: 'noopener noreferrer',
+      };
+    }
+  };
+  
+  const getTrackedUrl = (url: string) => {
+    try {
+      return affiliateClient.addTrackingParameters(url, source);
+    } catch (e) {
+      console.warn("Fallback: Could not add tracking parameters", e);
+      
+      // Basic tracking parameter fallback
+      const separator = url.includes('?') ? '&' : '?';
+      return `${url}${separator}utm_source=dailygamedrops&utm_medium=affiliate&utm_campaign=${source}`;
+    }
+  };
+  
+  const getDisclosure = () => {
+    try {
+      return affiliateClient.getAffiliateDisclosure(storeName);
+    } catch (e) {
+      console.warn("Fallback: Could not get affiliate disclosure", e);
+      const storeText = storeName ? ` to ${storeName}` : '';
+      return `This is an affiliate link${storeText}. We may earn a commission on purchases made through this link.`;
+    }
+  };
+  
   // Get standard affiliate link attributes
-  const linkAttributes = getAffiliateLinkAttributes();
+  const linkAttributes = getLinkAttributes();
   
   // Add tracking parameters to URL
-  const trackedUrl = addTrackingParameters(url, source);
+  const trackedUrl = getTrackedUrl(url);
   
   // Get the disclosure text
-  const disclosure = getAffiliateDisclosure(storeName);
+  const disclosure = getDisclosure();
   
   // Determine styling based on size
   const sizeClasses = {
