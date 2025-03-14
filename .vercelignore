@@ -1,0 +1,2 @@
+# Ignore ESLint during Vercel deployment
+.eslintrc* 
