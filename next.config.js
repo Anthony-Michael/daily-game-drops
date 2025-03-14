@@ -21,8 +21,8 @@ const nextConfig = {
     return config;
   },
   // Ensure affiliates aren't causing SSR issues
+  serverExternalPackages: [],
   experimental: {
-    serverComponentsExternalPackages: [],
     serverActions: {
       allowedOrigins: ['localhost:3000', 'dailygamedrops.com', '*.vercel.app']
     }

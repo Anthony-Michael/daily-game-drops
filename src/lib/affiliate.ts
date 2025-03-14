@@ -16,7 +16,7 @@
  */
 
 // Store-specific affiliate URL patterns and configurations
-interface StoreConfig {
+export interface StoreConfig {
   name: string;
   affiliateUrlPattern: string;
   requiresDealId: boolean;
@@ -132,30 +132,33 @@ const STORE_CONFIGS: Record<string, StoreConfig> = {
 };
 
 /**
- * Detects and returns the store configuration for a given store ID
+ * Detects the store configuration for a given store ID
  * 
- * This function returns the store-specific configuration from the STORE_CONFIGS
- * mapping. If the store ID doesn't match any configured store, it returns a
- * default configuration that uses CheapShark's redirect service.
+ * This is a key function that finds the appropriate store config based on the store ID.
+ * It's used throughout the application to handle different store-specific affiliate formats.
  * 
  * @param storeId - The store's unique identifier
- * @returns The store configuration for the given store ID
+ * @returns The store's configuration or a default/fallback configuration
  */
 export function detectStore(storeId: string): StoreConfig {
-  const storeConfig = STORE_CONFIGS[storeId];
-  
-  // If the store isn't in our config, return a default configuration
-  if (!storeConfig) {
-    console.warn(`Store with ID ${storeId} not found, using default configuration`);
-    return {
+  try {
+    // Return the matching store config or a default config
+    return STORE_CONFIGS[storeId] || {
       name: 'Unknown Store',
       affiliateUrlPattern: 'https://www.cheapshark.com/redirect?dealID={dealID}',
       requiresDealId: true,
       isDirectLink: false
     };
+  } catch (error) {
+    // Fallback in case of any error
+    console.warn(`Error detecting store ${storeId}:`, error);
+    return {
+      name: 'Game Store',
+      affiliateUrlPattern: 'https://www.cheapshark.com/redirect?dealID={dealID}',
+      requiresDealId: true,
+      isDirectLink: false
+    };
   }
-  
-  return storeConfig;
 }
 
 /**
@@ -181,29 +184,35 @@ export function generateAffiliateUrl(
   gameId?: string,
   storeUrl?: string
 ): string {
-  const storeConfig = STORE_CONFIGS[storeId];
-  
-  // If no store config exists or we don't have required data, use CheapShark redirect
-  if (!storeConfig || (storeConfig.requiresDealId && !dealId) || 
-      (storeConfig.requiresStoreId && !storeId)) {
-    return `https://www.cheapshark.com/redirect?dealID=${dealId}`;
-  }
-
-  // For direct links (like Steam), use the store's URL pattern with affiliate parameters
-  if (storeConfig.isDirectLink && gameId) {
-    let url = storeConfig.affiliateUrlPattern.replace('{gameId}', gameId);
+  try {
+    const storeConfig = detectStore(storeId);
     
-    // Add affiliate code if the store supports it
-    if (storeConfig.affiliateParam && storeConfig.affiliateCode) {
-      url = url.replace(`{${storeConfig.affiliateParam}}`, storeConfig.affiliateParam)
-               .replace('{affiliateCode}', storeConfig.affiliateCode);
+    // If no store config exists or we don't have required data, use CheapShark redirect
+    if (!storeConfig || (storeConfig.requiresDealId && !dealId) || 
+        (storeConfig.requiresStoreId && !storeId)) {
+      return `https://www.cheapshark.com/redirect?dealID=${dealId}`;
     }
-    
-    return url;
-  }
 
-  // For stores requiring deal ID, use CheapShark redirect (which handles affiliate tracking)
-  return `https://www.cheapshark.com/redirect?dealID=${dealId}`;
+    // For direct links (like Steam), use the store's URL pattern with affiliate parameters
+    if (storeConfig.isDirectLink && gameId) {
+      let url = storeConfig.affiliateUrlPattern.replace('{gameId}', gameId);
+      
+      // Add affiliate code if the store supports it
+      if (storeConfig.affiliateParam && storeConfig.affiliateCode) {
+        url = url.replace(`{${storeConfig.affiliateParam}}`, storeConfig.affiliateParam)
+                .replace('{affiliateCode}', storeConfig.affiliateCode);
+      }
+      
+      return url;
+    }
+
+    // For stores requiring deal ID, use CheapShark redirect (which handles affiliate tracking)
+    return `https://www.cheapshark.com/redirect?dealID=${dealId}`;
+  } catch (error) {
+    // Fallback to CheapShark redirect in case of any error
+    console.warn(`Error generating affiliate URL:`, error);
+    return dealId ? `https://www.cheapshark.com/redirect?dealID=${dealId}` : '#';
+  }
 }
 
 /**
@@ -216,7 +225,12 @@ export function generateAffiliateUrl(
  * @returns boolean indicating if the store supports direct links
  */
 export function supportsDirectAffiliateLinks(storeId: string): boolean {
-  return STORE_CONFIGS[storeId]?.isDirectLink || false;
+  try {
+    return detectStore(storeId)?.isDirectLink || false;
+  } catch (error) {
+    console.warn(`Error checking direct links support:`, error);
+    return false;
+  }
 }
 
 /**
@@ -226,7 +240,12 @@ export function supportsDirectAffiliateLinks(storeId: string): boolean {
  * @returns The store's display name or 'Unknown Store'
  */
 export function getStoreName(storeId: string): string {
-  return STORE_CONFIGS[storeId]?.name || 'Unknown Store';
+  try {
+    return detectStore(storeId)?.name || 'Unknown Store';
+  } catch (error) {
+    console.warn(`Error getting store name:`, error);
+    return 'Game Store';
+  }
 }
 
 /**
@@ -261,8 +280,13 @@ export function getAffiliateLinkAttributes(): Record<string, string> {
  * @returns The URL with UTM parameters added
  */
 export function addTrackingParameters(url: string, source: string = 'homepage'): string {
-  const separator = url.includes('?') ? '&' : '?';
-  return `${url}${separator}utm_source=dailygamedrops&utm_medium=affiliate&utm_campaign=${source}`;
+  try {
+    const separator = url.includes('?') ? '&' : '?';
+    return `${url}${separator}utm_source=dailygamedrops&utm_medium=affiliate&utm_campaign=${source}`;
+  } catch (error) {
+    console.warn(`Error adding tracking parameters:`, error);
+    return url;
+  }
 }
 
 /**
@@ -274,6 +298,22 @@ export function addTrackingParameters(url: string, source: string = 'homepage'):
  * @returns A disclosure statement for the specified store
  */
 export function getAffiliateDisclosure(storeName: string = ''): string {
-  const storeText = storeName ? ` to ${storeName}` : '';
-  return `This is an affiliate link${storeText}. We may earn a commission on purchases made through this link.`;
-} 
+  try {
+    const storeText = storeName ? ` to ${storeName}` : '';
+    return `This is an affiliate link${storeText}. We may earn a commission on purchases made through this link.`;
+  } catch (error) {
+    console.warn(`Error generating affiliate disclosure:`, error);
+    return `This is an affiliate link. We may earn a commission on purchases made through this link.`;
+  }
+}
+
+// Default export for compatibility with different import patterns
+export default {
+  detectStore,
+  generateAffiliateUrl,
+  supportsDirectAffiliateLinks,
+  getStoreName,
+  getAffiliateLinkAttributes,
+  addTrackingParameters,
+  getAffiliateDisclosure
+}; 
