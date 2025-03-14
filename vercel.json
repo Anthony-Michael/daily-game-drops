@@ -2,8 +2,7 @@
   "crons": [
     {
       "path": "/api/fetch-deals",
-      "schedule": "0 0 * * *",
-      "description": "Daily game deals fetcher"
+      "schedule": "0 0 * * *"
     }
   ]
 } 
