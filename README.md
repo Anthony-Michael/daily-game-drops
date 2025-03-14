@@ -83,4 +83,4 @@ MIT
 
 ## Deployment
 
-Last deployed: <!-- Deployment timestamp: --> ${new Date().toISOString()}
+Last deployed: <!-- Deployment timestamp: --> ${new Date().toISOString()} (Updated config)
