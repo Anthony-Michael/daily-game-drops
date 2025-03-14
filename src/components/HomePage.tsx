@@ -16,6 +16,14 @@ const GameDealCard = ({ deal }: { deal: GameDeal | GameDealFromAPI }) => {
   const isRSSDeal = 'source' in deal && deal.source === 'rss';
   const sourceType = isRSSDeal ? deal.sourceType : 'cheapshark';
   
+  // Check if this is an upcoming Epic Games deal
+  const isUpcomingEpicDeal = isRSSDeal && sourceType === 'epic' && 'isUpcoming' in deal && deal.isUpcoming;
+  
+  // Format categories for display
+  const categories = 'categories' in deal && Array.isArray(deal.categories) 
+    ? deal.categories
+    : [];
+  
   return (
     <div className="bg-white dark:bg-gray-900 rounded-lg overflow-hidden shadow-md hover:shadow-lg transition-all duration-300 transform hover:-translate-y-1">
       {/* Image */}
@@ -29,7 +37,13 @@ const GameDealCard = ({ deal }: { deal: GameDeal | GameDealFromAPI }) => {
             }}
           />
         </Link>
-        {deal.dealPrice === "Free" ? (
+        
+        {/* Deal type indicator */}
+        {isUpcomingEpicDeal ? (
+          <div className="absolute top-0 right-0 bg-amber-500 text-white px-3 py-1 rounded-bl-lg font-bold">
+            UPCOMING
+          </div>
+        ) : deal.dealPrice === "Free" || deal.dealPrice === "Coming Soon" ? (
           <div className="absolute top-0 right-0 bg-green-500 text-white px-3 py-1 rounded-bl-lg font-bold">
             FREE
           </div>
@@ -38,15 +52,25 @@ const GameDealCard = ({ deal }: { deal: GameDeal | GameDealFromAPI }) => {
             DEAL
           </div>
         )}
+        
+        {/* Platform badge */}
         {deal.platform && (
           <div className="absolute bottom-0 left-0 bg-black bg-opacity-70 text-white text-xs px-2 py-1">
             {deal.platform}
           </div>
         )}
+        
         {/* Source badge */}
         {isRSSDeal && (
-          <div className="absolute top-0 left-0 bg-purple-500 text-white text-xs px-2 py-1 rounded-tr-lg">
-            {sourceType === 'epic' ? 'Epic Games' : sourceType === 'humble' ? 'Humble' : 'RSS'}
+          <div className={`
+            absolute top-0 left-0 px-2 py-1 rounded-tr-lg text-xs text-white
+            ${sourceType === 'epic' ? 'bg-blue-600' : 
+              sourceType === 'humble' ? 'bg-purple-600' : 
+              'bg-indigo-600'}
+          `}>
+            {sourceType === 'epic' ? 'Epic Games' : 
+             sourceType === 'humble' ? 'Humble' : 
+             'RSS Feed'}
           </div>
         )}
       </div>
@@ -58,20 +82,45 @@ const GameDealCard = ({ deal }: { deal: GameDeal | GameDealFromAPI }) => {
             {deal.title}
           </h4>
         </Link>
-        <p className="text-gray-600 dark:text-gray-300 mb-4 text-sm line-clamp-2">{deal.description || "Check out this awesome game deal!"}</p>
+        
+        <p className="text-gray-600 dark:text-gray-300 mb-4 text-sm line-clamp-2">
+          {deal.description || "Check out this awesome game deal!"}
+        </p>
+        
+        {/* Categories */}
+        {categories.length > 0 && (
+          <div className="flex flex-wrap gap-1 mb-3">
+            {categories.slice(0, 3).map(category => (
+              <span key={category} className="text-xs px-2 py-0.5 bg-gray-200 dark:bg-gray-700 rounded-full text-gray-700 dark:text-gray-300">
+                {category}
+              </span>
+            ))}
+            {categories.length > 3 && (
+              <span className="text-xs px-2 py-0.5 bg-gray-200 dark:bg-gray-700 rounded-full text-gray-700 dark:text-gray-300">
+                +{categories.length - 3} more
+              </span>
+            )}
+          </div>
+        )}
         
         {/* Price */}
         <div className="flex items-center mb-4">
           <FaTag className="text-gray-500 dark:text-gray-400 mr-2" />
           <span className="text-gray-500 dark:text-gray-400 line-through mr-2">{deal.originalPrice}</span>
-          <span className="text-xl font-bold text-green-600 dark:text-green-500">{deal.dealPrice}</span>
+          <span className={`text-xl font-bold ${
+            deal.dealPrice === 'Free' ? 'text-green-600 dark:text-green-500' :
+            deal.dealPrice === 'Coming Soon' ? 'text-amber-600 dark:text-amber-500' :
+            'text-blue-600 dark:text-blue-500'
+          }`}>
+            {deal.dealPrice}
+          </span>
         </div>
         
-        {/* Date posted */}
+        {/* Date info */}
         <div className="text-xs text-gray-500 dark:text-gray-400 mb-4">
           Posted: {new Date(deal.datePosted).toLocaleDateString()}
           {'expiryDate' in deal && deal.expiryDate && (
-            <span> • Expires: {new Date(deal.expiryDate).toLocaleDateString()}</span>
+            <span className="font-medium text-red-500 dark:text-red-400"> • Expires: {new Date(deal.expiryDate).toLocaleDateString()}</span>
           )}
         </div>
         
@@ -80,19 +129,35 @@ const GameDealCard = ({ deal }: { deal: GameDeal | GameDealFromAPI }) => {
           {/* View Details Button */}
           <Link
             href={`/deals/${deal.slug}`}
-            className="flex-1 flex items-center justify-center bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-white py-2 px-4 rounded-lg transition-colors"
+            className={`
+              flex-1 flex items-center justify-center
+              bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 
+              text-gray-800 dark:text-white py-2 px-4 rounded-lg transition-colors
+            `}
             aria-label={`View details for ${deal.title}`}
           >
             View Details
           </Link>
           
-          {/* Affiliate Button */}
+          {/* Affiliate Button - Don't show for upcoming games */}
           <div className="flex-1">
-            <AffiliateButton 
-              url={deal.affiliateUrl} 
-              title={deal.title}
-              fullWidth={true}
-            />
+            {isUpcomingEpicDeal ? (
+              <button 
+                disabled
+                className="w-full inline-flex items-center justify-center bg-gray-400 text-white font-medium py-2 px-4 rounded-lg opacity-70 cursor-not-allowed"
+              >
+                Coming Soon
+              </button>
+            ) : (
+              <AffiliateButton 
+                url={deal.affiliateUrl} 
+                title={deal.title}
+                fullWidth={true}
+                storeName={deal.storeName}
+                showDisclosure={true}
+                source="homepage_card"
+              />
+            )}
           </div>
         </div>
       </div>

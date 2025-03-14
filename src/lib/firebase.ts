@@ -49,7 +49,13 @@ export interface GameDealFromAPI {
   expiryDate?: string;
   // Source information for RSS feeds
   source?: 'api' | 'rss';
-  sourceType?: 'cheapshark' | 'humble' | 'epic';
+  sourceType?: 'cheapshark' | 'humble' | 'epic' | string;
+  // Additional properties for RSS deals
+  categories?: string[];
+  isUpcoming?: boolean;
+  releaseDate?: string;
+  publisher?: string;
+  developer?: string;
 }
 
 // Collections

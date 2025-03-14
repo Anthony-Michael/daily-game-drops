@@ -13,6 +13,8 @@ export interface GameDeal {
   datePosted: string; // ISO date string
   platform?: string; // Optional platform information
   expiryDate?: string; // Optional expiry date
+  storeName?: string; // Store name for affiliate links and display
+  storeID?: string; // Store identifier
   // SEO fields
   metaTitle?: string;
   metaDescription?: string;
@@ -43,6 +45,8 @@ const dailyDeals: GameDeal[] = [
     datePosted: "2023-03-14T08:00:00Z",
     platform: "PC, PlayStation, Xbox",
     expiryDate: "2023-03-21T23:59:59Z",
+    storeName: "Steam",
+    storeID: "1",
     metaTitle: "Elden Ring | 33% Off | Daily Game Drops",
     metaDescription: "Save $20 on Elden Ring, FromSoftware's critically acclaimed action RPG with a vast open world and challenging combat.",
     keywords: ["elden ring", "fromsoft", "rpg", "game deal", "discount", "action rpg"]
@@ -58,6 +62,7 @@ const dailyDeals: GameDeal[] = [
     affiliateUrl: "https://example.com/affiliate/horizon-forbidden-west",
     datePosted: "2023-03-14T08:30:00Z",
     platform: "PlayStation",
+    storeName: "PlayStation Store",
     metaTitle: "Horizon Forbidden West | 57% Off | Daily Game Drops",
     metaDescription: "Grab Horizon Forbidden West at a massive discount and continue Aloy's journey in this breathtaking PlayStation exclusive.",
     keywords: ["horizon", "forbidden west", "aloy", "playstation", "ps5", "game deal"]
@@ -74,6 +79,8 @@ const dailyDeals: GameDeal[] = [
     datePosted: "2023-03-14T09:00:00Z",
     platform: "PC",
     expiryDate: "2023-03-21T15:00:00Z",
+    storeName: "Epic Games Store",
+    storeID: "9",
     metaTitle: "Free PC Game This Week | Epic Games Store | Daily Game Drops",
     metaDescription: "Claim a free PC game from Epic Games Store this week. Limited time offer - don't miss out!",
     keywords: ["free game", "epic games", "pc gaming", "free", "epic store", "giveaway"]
