@@ -1,3 +1,6 @@
+// Import the patcher module first to ensure the patching happens before anything else
+import './patchers';
+
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
