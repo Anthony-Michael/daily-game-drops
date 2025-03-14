@@ -165,8 +165,8 @@ const GameDealCard = ({ deal }: { deal: GameDeal | GameDealFromAPI }) => {
   );
 };
 
-export default function HomePage({ deals: initialDeals }: { deals: GameDeal[] }) {
-  const [staticDeals] = useState<GameDeal[]>(initialDeals);
+export default function HomePage({ deals: initialDeals }: { deals: (GameDeal | GameDealFromAPI)[] }) {
+  const [staticDeals] = useState<(GameDeal | GameDealFromAPI)[]>(initialDeals);
   const [apiDeals, setApiDeals] = useState<GameDealFromAPI[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all'); // 'all', 'free', 'paid'
