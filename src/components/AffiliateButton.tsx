@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useState } from 'react';
 import { FaShoppingCart, FaInfoCircle } from 'react-icons/fa';
 import { getAffiliateLinkAttributes, addTrackingParameters, getAffiliateDisclosure } from '@/lib/affiliate';
