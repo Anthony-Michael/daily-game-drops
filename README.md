@@ -80,3 +80,7 @@ To test the deal fetching without waiting for the cron job:
 ## License
 
 MIT
+
+## Deployment
+
+Last deployed: <!-- Deployment timestamp: --> ${new Date().toISOString()}
