@@ -9,220 +9,166 @@ import { GameDeal } from "../../data/dailyDeals";
 import { GameDealFromAPI } from "@/lib/firebase";
 import { fetchDeals } from "@/lib/firebase-client";
 import AffiliateButton from "./AffiliateButton";
+import GameDealCard from "./GameDealCard";
 
-// Card component for better code organization
-const GameDealCard = ({ deal }: { deal: GameDeal | GameDealFromAPI }) => {
-  // Determine if this is an RSS deal
-  const isRSSDeal = 'source' in deal && deal.source === 'rss';
-  const sourceType = isRSSDeal ? deal.sourceType : 'cheapshark';
-  
-  // Check if this is an upcoming Epic Games deal
-  const isUpcomingEpicDeal = isRSSDeal && sourceType === 'epic' && 'isUpcoming' in deal && deal.isUpcoming;
-  
-  // Format categories for display
-  const categories = 'categories' in deal && Array.isArray(deal.categories) 
-    ? deal.categories
-    : [];
-  
-  return (
-    <div className="bg-white dark:bg-gray-900 rounded-lg overflow-hidden shadow-md hover:shadow-lg transition-all duration-300 transform hover:-translate-y-1">
-      {/* Image */}
-      <div className="h-48 bg-gray-200 dark:bg-gray-700 relative">
-        <Link href={`/deals/${deal.slug}`} className="block w-full h-full">
-          <div 
-            className="w-full h-full bg-cover bg-center" 
-            style={{
-              backgroundImage: `url(${deal.imageUrl})`,
-              backgroundSize: 'cover'
-            }}
-          />
-        </Link>
-        
-        {/* Deal type indicator */}
-        {isUpcomingEpicDeal ? (
-          <div className="absolute top-0 right-0 bg-amber-500 text-white px-3 py-1 rounded-bl-lg font-bold">
-            UPCOMING
+// SafeGameDealCard wraps GameDealCard with error handling
+function SafeGameDealCard({ deal }: { deal: GameDeal | GameDealFromAPI }) {
+  try {
+    return <GameDealCard deal={deal} />;
+  } catch (error) {
+    console.error(`Error rendering GameDealCard for deal: ${deal.title}`, error);
+    
+    // Get a safe store name
+    const getStoreName = () => {
+      try {
+        if ('storeName' in deal && deal.storeName) {
+          return deal.storeName;
+        } else if ('storeID' in deal && deal.storeID) {
+          return `Store ${deal.storeID}`;
+        }
+        return 'Unknown Store';
+      } catch (e) {
+        return 'Unknown Store';
+      }
+    };
+    
+    // Fallback UI when the card fails to render
+    return (
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden border border-red-300 dark:border-red-700">
+        <div className="p-4">
+          <div className="bg-red-50 dark:bg-red-900/30 rounded p-2 mb-3">
+            <p className="text-red-600 dark:text-red-400 text-sm font-medium">
+              Error rendering this deal
+            </p>
           </div>
-        ) : deal.dealPrice === "Free" || deal.dealPrice === "Coming Soon" ? (
-          <div className="absolute top-0 right-0 bg-green-500 text-white px-3 py-1 rounded-bl-lg font-bold">
-            FREE
-          </div>
-        ) : (
-          <div className="absolute top-0 right-0 bg-red-500 text-white px-3 py-1 rounded-bl-lg font-bold">
-            DEAL
-          </div>
-        )}
-        
-        {/* Platform badge */}
-        {deal.platform && (
-          <div className="absolute bottom-0 left-0 bg-black bg-opacity-70 text-white text-xs px-2 py-1">
-            {deal.platform}
-          </div>
-        )}
-        
-        {/* Source badge */}
-        {isRSSDeal && (
-          <div className={`
-            absolute top-0 left-0 px-2 py-1 rounded-tr-lg text-xs text-white
-            ${sourceType === 'epic' ? 'bg-blue-600' : 
-              sourceType === 'humble' ? 'bg-purple-600' : 
-              'bg-indigo-600'}
-          `}>
-            {sourceType === 'epic' ? 'Epic Games' : 
-             sourceType === 'humble' ? 'Humble' : 
-             'RSS Feed'}
-          </div>
-        )}
-      </div>
-      
-      {/* Card Content */}
-      <div className="p-5">
-        <Link href={`/deals/${deal.slug}`} className="block">
-          <h4 className="text-xl font-bold text-gray-800 dark:text-white mb-2 hover:text-purple-600 dark:hover:text-purple-400 transition-colors">
-            {deal.title}
-          </h4>
-        </Link>
-        
-        <p className="text-gray-600 dark:text-gray-300 mb-4 text-sm line-clamp-2">
-          {deal.description || "Check out this awesome game deal!"}
-        </p>
-        
-        {/* Categories */}
-        {categories.length > 0 && (
-          <div className="flex flex-wrap gap-1 mb-3">
-            {categories.slice(0, 3).map(category => (
-              <span key={category} className="text-xs px-2 py-0.5 bg-gray-200 dark:bg-gray-700 rounded-full text-gray-700 dark:text-gray-300">
-                {category}
+          
+          <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-2">
+            {deal.title || 'Unknown Game'}
+          </h3>
+          
+          <div className="flex justify-between items-center mt-3">
+            <div>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                {getStoreName()}
+              </p>
+              <div className="flex items-center mt-1">
+                <span className="text-green-600 dark:text-green-400 font-bold">
+                  {deal.dealPrice || 'Unknown Price'}
+                </span>
+                {deal.originalPrice && deal.originalPrice !== deal.dealPrice && (
+                  <span className="ml-2 text-gray-500 dark:text-gray-400 line-through text-sm">
+                    {deal.originalPrice}
+                  </span>
+                )}
+              </div>
+            </div>
+            
+            {'slug' in deal && deal.slug ? (
+              <Link 
+                href={`/deal/${deal.slug}`} 
+                className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded"
+              >
+                View Deal
+              </Link>
+            ) : ('affiliateUrl' in deal && deal.affiliateUrl ? (
+              <a 
+                href={deal.affiliateUrl} 
+                className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                View Deal
+              </a>
+            ) : (
+              <span className="px-3 py-1 bg-gray-400 text-white text-sm rounded cursor-not-allowed">
+                Unavailable
               </span>
             ))}
-            {categories.length > 3 && (
-              <span className="text-xs px-2 py-0.5 bg-gray-200 dark:bg-gray-700 rounded-full text-gray-700 dark:text-gray-300">
-                +{categories.length - 3} more
-              </span>
-            )}
-          </div>
-        )}
-        
-        {/* Price */}
-        <div className="flex items-center mb-4">
-          <FaTag className="text-gray-500 dark:text-gray-400 mr-2" />
-          <span className="text-gray-500 dark:text-gray-400 line-through mr-2">{deal.originalPrice}</span>
-          <span className={`text-xl font-bold ${
-            deal.dealPrice === 'Free' ? 'text-green-600 dark:text-green-500' :
-            deal.dealPrice === 'Coming Soon' ? 'text-amber-600 dark:text-amber-500' :
-            'text-blue-600 dark:text-blue-500'
-          }`}>
-            {deal.dealPrice}
-          </span>
-        </div>
-        
-        {/* Date info */}
-        <div className="text-xs text-gray-500 dark:text-gray-400 mb-4">
-          Posted: {new Date(deal.datePosted).toLocaleDateString()}
-          {'expiryDate' in deal && deal.expiryDate && (
-            <span className="font-medium text-red-500 dark:text-red-400"> • Expires: {new Date(deal.expiryDate).toLocaleDateString()}</span>
-          )}
-        </div>
-        
-        {/* Buttons */}
-        <div className="flex gap-2">
-          {/* View Details Button */}
-          <Link
-            href={`/deals/${deal.slug}`}
-            className={`
-              flex-1 flex items-center justify-center
-              bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 
-              text-gray-800 dark:text-white py-2 px-4 rounded-lg transition-colors
-            `}
-            aria-label={`View details for ${deal.title}`}
-          >
-            View Details
-          </Link>
-          
-          {/* Affiliate Button - Don't show for upcoming games */}
-          <div className="flex-1">
-            {isUpcomingEpicDeal ? (
-              <button 
-                disabled
-                className="w-full inline-flex items-center justify-center bg-gray-400 text-white font-medium py-2 px-4 rounded-lg opacity-70 cursor-not-allowed"
-              >
-                Coming Soon
-              </button>
-            ) : (
-              <AffiliateButton 
-                url={deal.affiliateUrl} 
-                title={deal.title}
-                fullWidth={true}
-                storeName={deal.storeName}
-                showDisclosure={true}
-                source="homepage_card"
-              />
-            )}
           </div>
         </div>
       </div>
-    </div>
-  );
-};
+    );
+  }
+}
 
 export default function HomePage({ deals: initialDeals }: { deals: (GameDeal | GameDealFromAPI)[] }) {
   const [staticDeals] = useState<(GameDeal | GameDealFromAPI)[]>(initialDeals);
+  const [loading, setLoading] = useState(false);
   const [apiDeals, setApiDeals] = useState<GameDealFromAPI[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState('all'); // 'all', 'free', 'paid'
-  const [sortBy, setSortBy] = useState('date'); // 'date', 'price'
-  const [dataSource, setDataSource] = useState<'static' | 'api'>('static');
+  const [filter, setFilter] = useState<'all' | 'free'>('all');
+  const [sortBy, setSortBy] = useState<'newest' | 'price'>('newest');
 
-  // Fetch API deals on mount
+  // Fetch additional deals from the API
   useEffect(() => {
-    async function loadApiDeals() {
+    const loadDeals = async () => {
+      setLoading(true);
       try {
-        setLoading(true);
-        const deals = await fetchDeals(6);
-        if (deals && deals.length > 0) {
-          setApiDeals(deals);
-          setDataSource('api'); // Use API deals if available
-        }
+        const deals = await fetchDeals();
+        setApiDeals(deals);
       } catch (error) {
-        console.error('Error loading API deals:', error);
+        console.error("Error fetching API deals:", error);
       } finally {
         setLoading(false);
       }
-    }
-
-    loadApiDeals();
+    };
+    
+    loadDeals();
   }, []);
 
-  // Choose which deals to display
-  const allDeals = dataSource === 'api' ? apiDeals : staticDeals;
+  // Combine static and API deals
+  const allDeals = [...staticDeals, ...apiDeals];
 
-  // Filter and sort deals
+  // Filter deals based on selected filter
   const filteredAndSortedDeals = () => {
-    let filtered = [...allDeals];
+    let filtered = allDeals;
     
-    // Apply filter
+    // Apply free filter if selected
     if (filter === 'free') {
       filtered = filtered.filter(deal => deal.dealPrice === 'Free');
-    } else if (filter === 'paid') {
-      filtered = filtered.filter(deal => deal.dealPrice !== 'Free');
     }
     
     // Apply sorting
-    if (sortBy === 'price') {
-      filtered.sort((a, b) => {
+    if (sortBy === 'newest') {
+      filtered = [...filtered].sort((a, b) => 
+        new Date(b.datePosted).getTime() - new Date(a.datePosted).getTime()
+      );
+    } else if (sortBy === 'price') {
+      filtered = [...filtered].sort((a, b) => {
         const priceA = a.dealPrice === 'Free' ? 0 : parseFloat(a.dealPrice.replace('$', ''));
         const priceB = b.dealPrice === 'Free' ? 0 : parseFloat(b.dealPrice.replace('$', ''));
         return priceA - priceB;
       });
-    } else {
-      // Default: sort by date (newest first)
-      filtered.sort((a, b) => new Date(b.datePosted).getTime() - new Date(a.datePosted).getTime());
     }
     
     return filtered;
   };
 
   const dealsList = filteredAndSortedDeals();
+  
+  // Use the SafeGameDealCard component when rendering deals
+  const renderDeals = () => {
+    if (dealsList.length === 0) {
+      return (
+        <div className="text-center py-12">
+          <p className="text-gray-600 dark:text-gray-300 text-lg">No deals found matching your criteria.</p>
+          <button 
+            onClick={() => setFilter('all')}
+            className="mt-4 px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg"
+          >
+            Show All Deals
+          </button>
+        </div>
+      );
+    }
+    
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {dealsList.map(deal => (
+          <SafeGameDealCard key={typeof deal.id === 'string' ? deal.id : deal.slug} deal={deal} />
+        ))}
+      </div>
+    );
+  };
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -288,7 +234,7 @@ export default function HomePage({ deals: initialDeals }: { deals: (GameDeal | G
         <div className="container mx-auto px-4">
           <div className="flex flex-wrap justify-between items-center mb-8">
             <h3 className="text-2xl font-bold text-gray-800 dark:text-white">
-              {dataSource === 'api' ? "Today's Fresh Deals" : "Today's Best Deals"}
+              {apiDeals.length > 0 ? "Today's Fresh Deals" : "Today's Best Deals"}
             </h3>
             
             <div className="flex items-center mt-4 sm:mt-0">
@@ -297,11 +243,10 @@ export default function HomePage({ deals: initialDeals }: { deals: (GameDeal | G
                 <select 
                   className="bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-200 py-1 px-3"
                   value={filter}
-                  onChange={(e) => setFilter(e.target.value)}
+                  onChange={(e) => setFilter(e.target.value as 'all' | 'free')}
                 >
                   <option value="all">All Deals</option>
                   <option value="free">Free Only</option>
-                  <option value="paid">Paid Only</option>
                 </select>
               </div>
               
@@ -310,9 +255,9 @@ export default function HomePage({ deals: initialDeals }: { deals: (GameDeal | G
                 <select 
                   className="bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-200 py-1 px-3"
                   value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value)}
+                  onChange={(e) => setSortBy(e.target.value as 'newest' | 'price')}
                 >
-                  <option value="date">Newest First</option>
+                  <option value="newest">Newest First</option>
                   <option value="price">Price: Low to High</option>
                 </select>
               </div>
@@ -336,23 +281,7 @@ export default function HomePage({ deals: initialDeals }: { deals: (GameDeal | G
                 </div>
               ))}
             </div>
-          ) : dealsList.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {dealsList.map(deal => (
-                <GameDealCard key={'id' in deal ? deal.id : deal.slug} deal={deal} />
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-12">
-              <p className="text-gray-600 dark:text-gray-300 text-lg">No deals found matching your criteria.</p>
-              <button 
-                onClick={() => setFilter('all')}
-                className="mt-4 px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg"
-              >
-                Show All Deals
-              </button>
-            </div>
-          )}
+          ) : renderDeals()}
         </div>
       </section>
 
