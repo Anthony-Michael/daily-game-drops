@@ -20,7 +20,7 @@ interface StoreConfig {
   name: string;
   affiliateUrlPattern: string;
   requiresDealId: boolean;
-  requiresStoreId: boolean;
+  requiresStoreId?: boolean;
   isDirectLink: boolean;
   affiliateParam?: string; // Optional parameter name for affiliate code
   affiliateCode?: string;  // Optional default affiliate code
@@ -130,6 +130,33 @@ const STORE_CONFIGS: Record<string, StoreConfig> = {
   },
   // Add more stores as needed
 };
+
+/**
+ * Detects and returns the store configuration for a given store ID
+ * 
+ * This function returns the store-specific configuration from the STORE_CONFIGS
+ * mapping. If the store ID doesn't match any configured store, it returns a
+ * default configuration that uses CheapShark's redirect service.
+ * 
+ * @param storeId - The store's unique identifier
+ * @returns The store configuration for the given store ID
+ */
+export function detectStore(storeId: string): StoreConfig {
+  const storeConfig = STORE_CONFIGS[storeId];
+  
+  // If the store isn't in our config, return a default configuration
+  if (!storeConfig) {
+    console.warn(`Store with ID ${storeId} not found, using default configuration`);
+    return {
+      name: 'Unknown Store',
+      affiliateUrlPattern: 'https://www.cheapshark.com/redirect?dealID={dealID}',
+      requiresDealId: true,
+      isDirectLink: false
+    };
+  }
+  
+  return storeConfig;
+}
 
 /**
  * Generates an affiliate URL for a game deal
