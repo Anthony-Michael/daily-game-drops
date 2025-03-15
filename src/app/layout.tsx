@@ -80,6 +80,9 @@ export default function RootLayout({
   return (
     <html lang="en" className="h-full">
       <head>
+        {/* External browser fix script - runs before React */}
+        <script src="/browserfix.js"></script>
+        
         {/* Enhanced error prevention script for client-side issues */}
         <script
           dangerouslySetInnerHTML={{

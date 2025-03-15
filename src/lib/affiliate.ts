@@ -198,7 +198,13 @@ export function generateAffiliateUrl(
  */
 export function supportsDirectAffiliateLinks(storeId: string): boolean {
   try {
-    return detectStore(storeId)?.isDirectLink || false;
+    if (!storeId || typeof storeId !== 'string') {
+      console.warn('Invalid storeId provided to supportsDirectAffiliateLinks:', storeId);
+      return false;
+    }
+    
+    const config = detectStore(storeId);
+    return config?.isDirectLink || false;
   } catch (error) {
     console.warn(`Error checking direct links support:`, error);
     return false;
@@ -213,7 +219,13 @@ export function supportsDirectAffiliateLinks(storeId: string): boolean {
  */
 export function getStoreName(storeId: string): string {
   try {
-    return detectStore(storeId)?.name || 'Unknown Store';
+    if (!storeId || typeof storeId !== 'string') {
+      console.warn('Invalid storeId provided to getStoreName:', storeId);
+      return 'Game Store';
+    }
+    
+    const config = detectStore(storeId);
+    return config?.name || 'Unknown Store';
   } catch (error) {
     console.warn(`Error getting store name:`, error);
     return 'Game Store';

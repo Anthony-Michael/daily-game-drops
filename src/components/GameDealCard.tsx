@@ -8,6 +8,30 @@ import { GameDealFromAPI } from "@/lib/firebase";
 import AffiliateButton from "./AffiliateButton";
 import { detectStore } from '@/lib/affiliate-universal';
 
+// Safely get store name with fallback
+const getStoreName = (deal: GameDeal | GameDealFromAPI) => {
+  try {
+    // Direct storeName from deal object
+    if (deal.storeName && typeof deal.storeName === 'string') {
+      return deal.storeName;
+    }
+    
+    // Use storeID to look up store name
+    if (deal.storeID && typeof deal.storeID === 'string') {
+      const storeConfig = detectStore(deal.storeID);
+      if (storeConfig && storeConfig.name) {
+        return storeConfig.name;
+      }
+    }
+    
+    // Default fallback
+    return 'Game Store';
+  } catch (error) {
+    console.warn(`Error getting store name: ${error}`);
+    return 'Game Store';
+  }
+};
+
 // Card component for displaying game deals
 export default function GameDealCard({ deal }: { deal: GameDeal | GameDealFromAPI }) {
   // Use try-catch for all potentially risky operations
@@ -24,8 +48,8 @@ export default function GameDealCard({ deal }: { deal: GameDeal | GameDealFromAP
       ? deal.categories
       : [];
 
-    // Add fallback for missing storeName
-    const storeName = deal.storeName || 'Game Store';
+    // Safely get store name with fallback using our helper function
+    const storeName = getStoreName(deal);
     
     // Safely access other attributes
     const dealPrice = deal.dealPrice || 'Deal';
