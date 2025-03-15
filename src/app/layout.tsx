@@ -80,6 +80,55 @@ export default function RootLayout({
   return (
     <html lang="en" className="h-full">
       <head>
+        {/* Critical early patch - must be first script in head */}
+        <script dangerouslySetInnerHTML={{
+          __html: `
+            // Immediate execution patch for browser extensions
+            (function() {
+              window.a = window.a || {};
+              window.a.default = window.a.default || {};
+              window.a.default.detectStore = window.a.default.detectStore || function(storeId) {
+                console.log('[Critical Patch] Using early fallback detectStore for: ' + storeId);
+                return {
+                  name: 'Unknown Store',
+                  affiliateUrlPattern: 'https://www.cheapshark.com/redirect?dealID={dealID}',
+                  requiresDealId: true,
+                  isDirectLink: false
+                };
+              };
+              
+              // Ensure window.detectStore exists as well
+              window.detectStore = window.detectStore || window.a.default.detectStore;
+              
+              // Catch any errors related to detectStore
+              window.addEventListener('error', function(event) {
+                if (event.message && event.message.includes('detectStore')) {
+                  console.warn('[Critical Patch] Caught detectStore error:', event.message);
+                  
+                  // Reapply the patches
+                  window.a = window.a || {};
+                  window.a.default = window.a.default || {};
+                  window.a.default.detectStore = function(storeId) {
+                    return {
+                      name: 'Unknown Store',
+                      affiliateUrlPattern: 'https://www.cheapshark.com/redirect?dealID={dealID}',
+                      requiresDealId: true,
+                      isDirectLink: false
+                    };
+                  };
+                  window.detectStore = window.a.default.detectStore;
+                  
+                  // Prevent the error from propagating
+                  event.preventDefault();
+                  return true;
+                }
+              }, true);
+              
+              console.log('[Critical Patch] Initial patches applied');
+            })();
+          `
+        }} />
+        
         {/* External browser fix script - runs before React */}
         <script src="/browserfix.js"></script>
         

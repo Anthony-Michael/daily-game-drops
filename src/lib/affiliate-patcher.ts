@@ -5,6 +5,37 @@
 
 import detectStore, { StoreConfig } from './affiliate-universal';
 
+// Immediately invoke function to patch global objects as soon as this module is imported
+(() => {
+  try {
+    if (typeof window === 'undefined') {
+      // Only run server-side code
+      console.log('[Server Patcher] Applying immediate server-side patches');
+      
+      // Define a properly typed global object with any to avoid TypeScript errors
+      const globalObj = global as any;
+      
+      // Ensure global.a exists and has detectStore
+      globalObj.a = globalObj.a || {};
+      globalObj.a.default = globalObj.a.default || {};
+      globalObj.a.default.detectStore = globalObj.a.default.detectStore || function(storeId: string) {
+        console.log('[Server Patcher] Using immediate fallback for:', storeId);
+        return {
+          name: 'Unknown Store',
+          affiliateUrlPattern: 'https://www.cheapshark.com/redirect?dealID={dealID}',
+          requiresDealId: true,
+          isDirectLink: false
+        };
+      };
+      
+      // Also patch global.detectStore directly
+      globalObj.detectStore = globalObj.detectStore || globalObj.a.default.detectStore;
+    }
+  } catch (error) {
+    console.error('[Server Patcher] Failed to apply immediate patch:', error);
+  }
+})();
+
 // Default fallback configuration if detectStore fails
 const fallbackStoreConfig: StoreConfig = {
   name: 'Unknown Store',
@@ -52,17 +83,20 @@ const applyPatches = () => {
       // Server-side patching
       console.log('[Affiliate Patcher] Applying patches in server environment');
       
+      // Use any typing for global to avoid TypeScript errors
+      const globalObj = global as any;
+      
       // Patch global detectStore
-      (global as any).detectStore = patchedDetectStore;
+      globalObj.detectStore = patchedDetectStore;
       
       // Patch a.default.detectStore pattern that's causing errors
-      if (typeof (global as any).a === 'undefined') {
-        (global as any).a = { default: { detectStore: patchedDetectStore } };
+      if (typeof globalObj.a === 'undefined') {
+        globalObj.a = { default: { detectStore: patchedDetectStore } };
       } else {
-        if (!(global as any).a.default) {
-          (global as any).a.default = { detectStore: patchedDetectStore };
+        if (!globalObj.a.default) {
+          globalObj.a.default = { detectStore: patchedDetectStore };
         } else {
-          (global as any).a.default.detectStore = patchedDetectStore;
+          globalObj.a.default.detectStore = patchedDetectStore;
         }
       }
       
@@ -71,17 +105,20 @@ const applyPatches = () => {
       // Client-side patching
       console.log('[Affiliate Patcher] Applying patches in browser environment');
       
+      // Use any typing for window to avoid TypeScript errors
+      const windowObj = window as any;
+      
       // Patch window detectStore
-      (window as any).detectStore = patchedDetectStore;
+      windowObj.detectStore = patchedDetectStore;
       
       // Patch a.default.detectStore pattern that's causing errors
-      if (typeof (window as any).a === 'undefined') {
-        (window as any).a = { default: { detectStore: patchedDetectStore } };
+      if (typeof windowObj.a === 'undefined') {
+        windowObj.a = { default: { detectStore: patchedDetectStore } };
       } else {
-        if (!(window as any).a.default) {
-          (window as any).a.default = { detectStore: patchedDetectStore };
+        if (!windowObj.a.default) {
+          windowObj.a.default = { detectStore: patchedDetectStore };
         } else {
-          (window as any).a.default.detectStore = patchedDetectStore;
+          windowObj.a.default.detectStore = patchedDetectStore;
         }
       }
       
