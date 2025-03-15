@@ -32,7 +32,9 @@ export default function ThemeToggle() {
 
   // Handle theme change
   const toggleTheme = () => {
+    console.log('Toggle theme called'); // Debug log
     const newTheme: Theme = theme === 'light' ? 'dark' : 'light';
+    console.log('New theme:', newTheme); // Debug log
     setTheme(newTheme);
     localStorage.setItem('theme', newTheme);
     applyTheme(newTheme);

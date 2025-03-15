@@ -1,7 +1,8 @@
 import { Metadata } from "next";
-import { fetchDealsFromDb, GameDealFromAPI } from "../lib/firebase";
+import { fetchDealsFromDb, serializeFirestoreDocument, GameDealFromAPI } from "../lib/firebase";
 import HomePage from "../components/HomePage";
 import dailyDeals, { GameDeal } from "../../data/dailyDeals";
+import { Suspense } from "react";
 
 // Configure page as dynamic to ensure fresh data on each request
 export const dynamic = 'force-dynamic';
@@ -42,36 +43,93 @@ export const metadata: Metadata = {
   },
 };
 
-/**
- * Home page component
- * 
- * This server component fetches the latest game deals from Firestore
- * and passes them to the client-side HomePage component.
- * 
- * If Firestore fetch fails, it falls back to static data.
- */
-export default async function Page() {
+// Loading component for better UX
+function GameDealsLoading() {
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-8">
+      {[...Array(6)].map((_, i) => (
+        <div key={i} className="bg-white dark:bg-gray-800 rounded-lg overflow-hidden shadow-md animate-pulse">
+          <div className="h-48 bg-gray-300 dark:bg-gray-700" />
+          <div className="p-5">
+            <div className="h-6 bg-gray-300 dark:bg-gray-700 rounded mb-4 w-3/4" />
+            <div className="h-4 bg-gray-300 dark:bg-gray-700 rounded mb-2 w-full" />
+            <div className="h-4 bg-gray-300 dark:bg-gray-700 rounded mb-4 w-2/3" />
+            <div className="h-10 bg-gray-300 dark:bg-gray-700 rounded w-full" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// Game Deals fetcher component
+async function GameDealsContent() {
   // Fetch the latest deals from Firestore (server-side)
-  let deals: (GameDeal | GameDealFromAPI)[];
+  let deals: (GameDeal | GameDealFromAPI)[] = [];
+  let error = null;
+  
   try {
-    console.log("Fetching deals from Firestore for homepage...");
+    console.log("Fetching deals from Firestore...");
     const firestoreDeals = await fetchDealsFromDb(12);
     
-    // Only use Firestore deals if we got some results
     if (firestoreDeals && firestoreDeals.length > 0) {
       console.log(`Successfully loaded ${firestoreDeals.length} deals from Firestore`);
-      // Data is already serialized by fetchDealsFromDb via serializeFirestoreDocument
       deals = firestoreDeals;
     } else {
       console.log("No deals found in Firestore, using static data");
       deals = dailyDeals;
     }
-  } catch (error) {
-    // If Firestore fetch fails, fall back to static data
-    console.error("Error fetching deals from Firestore:", error);
+  } catch (err) {
+    console.error("Error fetching deals from Firestore:", err);
+    error = err;
     deals = dailyDeals;
   }
 
+  // If we encountered an error but have fallback data
+  if (error && deals.length > 0) {
+    return (
+      <div className="mb-8">
+        <div className="bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 rounded-lg p-4 mb-6">
+          <p className="text-amber-800 dark:text-amber-200">
+            Unable to fetch the latest deals from our database. Showing cached deals instead.
+          </p>
+        </div>
+        <HomePage deals={deals} />
+      </div>
+    );
+  }
+
+  // If we have deals (either from Firestore or fallback)
+  if (deals.length > 0) {
+    return <HomePage deals={deals} />;
+  }
+
+  // If we have no deals at all
+  return (
+    <div className="flex flex-col items-center justify-center mt-12 p-8 text-center">
+      <h2 className="text-2xl font-bold text-gray-800 dark:text-white mb-4">
+        No Game Deals Available
+      </h2>
+      <p className="text-gray-600 dark:text-gray-300 mb-6">
+        We're unable to load game deals at the moment. Please check back later.
+      </p>
+      <button 
+        onClick={() => window.location.reload()}
+        className="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors"
+      >
+        Refresh Page
+      </button>
+    </div>
+  );
+}
+
+/**
+ * Home page component
+ * 
+ * This server component coordinates the fetching of game deals from Firestore
+ * and renders the appropriate UI based on the result.
+ */
+export default function Page() {
   // JSON-LD structured data for rich search results
   const jsonLd = {
     "@context": "https://schema.org",
@@ -83,7 +141,7 @@ export default async function Page() {
       "target": "https://dailygamedrops.com/search?q={search_term_string}",
       "query-input": "required name=search_term_string"
     },
-    "description": "Discover the best daily video game deals, discounts, and free games across PC, PlayStation, Xbox, and Nintendo Switch.",
+    "description": "Discover the best daily video game deals, discounts, and free games across all platforms.",
     "publisher": {
       "@type": "Organization",
       "name": "Daily Game Drops",
@@ -121,29 +179,6 @@ export default async function Page() {
     ]
   };
 
-  // ItemList structured data for the deals
-  const itemListData = {
-    "@context": "https://schema.org",
-    "@type": "ItemList",
-    "itemListElement": deals.slice(0, 10).map((deal, index) => ({
-      "@type": "ListItem",
-      "position": index + 1,
-      "item": {
-        "@type": "Product",
-        "name": deal.title,
-        "description": deal.description || `${deal.title} on sale`,
-        "offers": {
-          "@type": "Offer",
-          "price": deal.dealPrice === "Free" ? "0" : deal.dealPrice.replace("$", ""),
-          "priceCurrency": "USD",
-          "availability": "https://schema.org/InStock",
-          "url": `https://dailygamedrops.com/deals/${deal.slug}`
-        },
-        "image": deal.imageUrl
-      }
-    }))
-  };
-
   return (
     <>
       {/* Add structured data for SEO */}
@@ -151,13 +186,11 @@ export default async function Page() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(itemListData) }}
-      />
       
-      {/* Pass deals to the client component */}
-      <HomePage deals={deals as any} />
+      {/* Game Deals with loading state */}
+      <Suspense fallback={<GameDealsLoading />}>
+        <GameDealsContent />
+      </Suspense>
     </>
   );
 }
