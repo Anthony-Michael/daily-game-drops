@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
 import { saveDealsToDb, GameDealFromAPI } from '@/lib/firebase';
-import { generateAffiliateUrl, getStoreName } from '@/app/api/detect-store-adapter';
+import { generateAffiliateUrl, getStoreName } from '@/lib/affiliate';
 import { fetchRSSFeeds } from '@/lib/rss';
 import { Timestamp } from 'firebase-admin/firestore';
+import { detectStore } from '@/lib/affiliate-universal';
 
 /**
  * API Configuration Constants
@@ -305,4 +306,15 @@ export async function POST(request: Request) {
 }
 
 // Ensure this route is not cached
-export const dynamic = 'force-dynamic'; 
+export const dynamic = 'force-dynamic';
+
+// Define storeId before using it
+const storeId = '1'; // Example store ID, replace with actual logic
+
+try {
+  const storeConfig = detectStore(storeId);
+  // Use storeConfig as needed
+} catch (error) {
+  console.error('Error using detectStore:', error);
+  // Handle error or use fallback
+} 

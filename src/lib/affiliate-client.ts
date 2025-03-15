@@ -16,44 +16,6 @@ interface StoreConfig {
 }
 
 /**
- * Client-side store detection function to avoid "undefined" errors
- * This provides a safe fallback when the main detectStore function can't be properly imported
- */
-export function detectStore(storeId: string): StoreConfig {
-  // Default configuration for when store ID isn't found
-  const defaultConfig: StoreConfig = {
-    name: 'Unknown Store',
-    affiliateUrlPattern: 'https://www.cheapshark.com/redirect?dealID={dealID}',
-    requiresDealId: true,
-    isDirectLink: false
-  };
-  
-  // Simple client-side store configs for the most common stores
-  const clientStoreConfigs: Record<string, StoreConfig> = {
-    '1': { 
-      name: 'Steam',
-      affiliateUrlPattern: 'https://www.cheapshark.com/redirect?dealID={dealID}',
-      requiresDealId: true,
-      isDirectLink: false
-    },
-    '4': { 
-      name: 'Humble Store',
-      affiliateUrlPattern: 'https://www.cheapshark.com/redirect?dealID={dealID}',
-      requiresDealId: true,
-      isDirectLink: false
-    },
-    '9': { 
-      name: 'Epic Games Store',
-      affiliateUrlPattern: 'https://www.cheapshark.com/redirect?dealID={dealID}',
-      requiresDealId: true,
-      isDirectLink: false
-    }
-  };
-  
-  return clientStoreConfigs[storeId] || defaultConfig;
-}
-
-/**
  * Get affiliate link attributes for HTML elements
  */
 export function getAffiliateLinkAttributes(): Record<string, string> {
@@ -83,7 +45,6 @@ export function getAffiliateDisclosure(storeName: string = ''): string {
 
 // Default export to ensure compatibility with different import patterns
 const defaultExport = {
-  detectStore,
   getAffiliateLinkAttributes,
   addTrackingParameters,
   getAffiliateDisclosure

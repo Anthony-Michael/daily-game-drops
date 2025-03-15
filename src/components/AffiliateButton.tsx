@@ -6,6 +6,7 @@ import { FaShoppingCart, FaInfoCircle } from 'react-icons/fa';
 // Import the client functions directly instead of using named imports
 // This helps avoid the "a.default" import pattern that's causing errors
 import affiliateClient from '@/lib/affiliate-client';
+import { detectStore } from '@/lib/affiliate-universal';
 
 interface AffiliateButtonProps {
   url: string;

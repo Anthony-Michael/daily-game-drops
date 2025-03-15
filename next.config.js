@@ -10,23 +10,20 @@ const nextConfig = {
   },
   // Handle module resolution issues for affiliate functions
   webpack: (config, { isServer }) => {
-    // Add a module alias for server components to use the server-safe version
-    config.resolve.alias = {
-      ...config.resolve.alias,
-      '@/lib/affiliate$': isServer 
-        ? require.resolve('./src/app/api/detect-store-adapter.ts')
-        : require.resolve('./src/lib/affiliate-client.ts')
-    };
-    
     return config;
   },
   // Ensure affiliates aren't causing SSR issues
   serverExternalPackages: [],
-  experimental: {
-    serverActions: {
-      allowedOrigins: ['localhost:3000', 'dailygamedrops.com', '*.vercel.app']
-    }
-  }
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'cdn.cloudflare.steamstatic.com',
+        port: '',
+        pathname: '/steam/**',
+      },
+    ],
+  },
 };
 
 module.exports = nextConfig; 

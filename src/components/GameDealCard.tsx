@@ -6,6 +6,7 @@ import { CgGames } from "react-icons/cg";
 import { GameDeal } from "../../data/dailyDeals";
 import { GameDealFromAPI } from "@/lib/firebase";
 import AffiliateButton from "./AffiliateButton";
+import { detectStore } from '@/lib/affiliate-universal';
 
 // Card component for displaying game deals
 export default function GameDealCard({ deal }: { deal: GameDeal | GameDealFromAPI }) {

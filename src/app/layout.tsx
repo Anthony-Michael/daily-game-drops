@@ -1,5 +1,6 @@
-// Import the patcher module first to ensure the patching happens before anything else
-import './patchers';
+// Remove the import statement for the deleted patchers.js file
+// import './patchers';
+import applyPatches from '@/lib/affiliate-patcher';
 
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
@@ -14,6 +15,9 @@ const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
 });
+
+// Apply patches early in the application lifecycle
+applyPatches();
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://dailygamedrops.com'),

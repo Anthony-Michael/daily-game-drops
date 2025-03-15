@@ -15,6 +15,8 @@
  * 4. Additional metadata is attached to these links (rel attributes, target, etc.) for proper tracking and UX
  */
 
+import { detectStore } from './affiliate-universal';
+
 // Store-specific affiliate URL patterns and configurations
 export interface StoreConfig {
   name: string;
@@ -130,36 +132,6 @@ const STORE_CONFIGS: Record<string, StoreConfig> = {
   },
   // Add more stores as needed
 };
-
-/**
- * Detects the store configuration for a given store ID
- * 
- * This is a key function that finds the appropriate store config based on the store ID.
- * It's used throughout the application to handle different store-specific affiliate formats.
- * 
- * @param storeId - The store's unique identifier
- * @returns The store's configuration or a default/fallback configuration
- */
-export function detectStore(storeId: string): StoreConfig {
-  try {
-    // Return the matching store config or a default config
-    return STORE_CONFIGS[storeId] || {
-      name: 'Unknown Store',
-      affiliateUrlPattern: 'https://www.cheapshark.com/redirect?dealID={dealID}',
-      requiresDealId: true,
-      isDirectLink: false
-    };
-  } catch (error) {
-    // Fallback in case of any error
-    console.warn(`Error detecting store ${storeId}:`, error);
-    return {
-      name: 'Game Store',
-      affiliateUrlPattern: 'https://www.cheapshark.com/redirect?dealID={dealID}',
-      requiresDealId: true,
-      isDirectLink: false
-    };
-  }
-}
 
 /**
  * Generates an affiliate URL for a game deal
@@ -309,7 +281,6 @@ export function getAffiliateDisclosure(storeName: string = ''): string {
 
 // Default export for compatibility with different import patterns
 export default {
-  detectStore,
   generateAffiliateUrl,
   supportsDirectAffiliateLinks,
   getStoreName,
