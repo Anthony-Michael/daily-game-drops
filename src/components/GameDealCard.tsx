@@ -106,8 +106,11 @@ export default function GameDealCard({ deal }: { deal: GameDeal | GameDealFromAP
           <div className="relative w-full h-48 bg-gray-200 dark:bg-gray-700">
             {deal.imageUrl ? (
               <div
-                className="w-full h-full bg-center bg-cover"
-                style={{ backgroundImage: `url(${deal.imageUrl})` }}
+                className="w-full h-full bg-center bg-cover-crisp image-rendering-crisp"
+                style={{ 
+                  backgroundImage: `url(${deal.imageUrl})`,
+                  imageRendering: 'crisp-edges'
+                }}
               ></div>
             ) : (
               <div className="w-full h-full flex items-center justify-center">

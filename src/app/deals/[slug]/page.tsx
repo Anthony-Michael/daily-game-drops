@@ -152,10 +152,11 @@ export default function DealPage({ params }: Props) {
           {/* Game Image */}
           <div className="relative h-64 sm:h-80 md:h-96 bg-gray-200 dark:bg-gray-700">
             <div
-              className="w-full h-full bg-cover bg-center"
+              className="w-full h-full bg-cover-crisp bg-center image-rendering-crisp"
               style={{
                 backgroundImage: `url(${deal.imageUrl})`,
                 backgroundSize: "cover",
+                imageRendering: 'crisp-edges'
               }}
             />
             

@@ -10,6 +10,7 @@ import { GameDealFromAPI } from "@/lib/firebase";
 import { fetchDeals } from "@/lib/firebase-client";
 import AffiliateButton from "./AffiliateButton";
 import GameDealCard from "./GameDealCard";
+import ThemeToggle from './ThemeToggle';
 
 // SafeGameDealCard wraps GameDealCard with error handling
 function SafeGameDealCard({ deal }: { deal: GameDeal | GameDealFromAPI }) {
@@ -124,7 +125,13 @@ export default function HomePage({ deals: initialDeals }: { deals: (GameDeal | G
     
     // Apply free filter if selected
     if (filter === 'free') {
-      filtered = filtered.filter(deal => deal.dealPrice === 'Free');
+      // Fixed free games filter to match both 'Free' and price of $0.00
+      filtered = filtered.filter(deal => 
+        deal.dealPrice === 'Free' || 
+        deal.dealPrice === '$0.00' || 
+        deal.dealPrice === '$0' ||
+        (deal.dealPrice && parseFloat(deal.dealPrice.replace('$', '')) === 0)
+      );
     }
     
     // Apply sorting
@@ -181,7 +188,7 @@ export default function HomePage({ deals: initialDeals }: { deals: (GameDeal | G
               Daily Game Drops
             </h1>
           </div>
-          <nav className="hidden md:flex space-x-6">
+          <nav className="hidden md:flex items-center space-x-6">
             <a href="#" className="text-gray-600 hover:text-purple-600 dark:text-gray-300 dark:hover:text-purple-400 transition-colors">
               Home
             </a>
@@ -194,12 +201,16 @@ export default function HomePage({ deals: initialDeals }: { deals: (GameDeal | G
             <a href="#" className="text-gray-600 hover:text-purple-600 dark:text-gray-300 dark:hover:text-purple-400 transition-colors">
               About
             </a>
+            <ThemeToggle />
           </nav>
-          <button className="block md:hidden">
-            <svg className="w-6 h-6 text-gray-600 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
-          </button>
+          <div className="flex items-center space-x-2 md:hidden">
+            <ThemeToggle />
+            <button>
+              <svg className="w-6 h-6 text-gray-600 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
+          </div>
         </div>
       </header>
 

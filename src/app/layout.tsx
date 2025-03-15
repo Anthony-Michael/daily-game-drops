@@ -399,6 +399,25 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased h-full dark:bg-gray-900 bg-gray-50 transition-colors duration-300`}
       >
+        {/* Add script to set theme before page renders to prevent flash */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                // Check for saved theme preference or use default 'dark'
+                const theme = localStorage.getItem('theme') || 'dark';
+                
+                // Apply the appropriate class based on the theme
+                if (theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                  document.documentElement.classList.add('dark');
+                } else {
+                  document.documentElement.classList.remove('dark');
+                  document.documentElement.classList.add('light');
+                }
+              })();
+            `,
+          }}
+        />
         {children}
       </body>
     </html>
