@@ -2,46 +2,58 @@ import { NextResponse } from 'next/server';
 import { saveDealsToDb, GameDealFromAPI } from '@/lib/firebase';
 import { generateAffiliateUrl, getStoreName } from '@/lib/affiliate';
 import { fetchRSSFeeds } from '@/lib/rss';
-import { Timestamp } from 'firebase-admin/firestore';
 import { detectStore } from '@/lib/affiliate-universal';
 
 /**
- * API Configuration Constants
+ * AUTOMATED GAME DEALS FETCHER API ROUTE
+ * 
+ * This API route is responsible for fetching game deals from various sources
+ * and storing them in Firebase Firestore. It is designed to be triggered:
+ * 
+ * 1. Manually by accessing GET /api/fetch-deals (for testing)
+ * 2. Automatically by a scheduled cron job via POST /api/fetch-deals
+ * 
+ * SETTING UP THE CRON JOB:
+ * To set up automated daily fetching, add a cron job in Vercel:
+ * 
+ * 1. Go to your Vercel project dashboard
+ * 2. Navigate to Settings > Cron Jobs
+ * 3. Add a new cron job with:
+ *    - Name: "Daily Game Deals Fetch"
+ *    - Schedule: "0 0 * * *" (runs at midnight UTC daily)
+ *    - HTTP Method: POST
+ *    - Path: /api/fetch-deals
+ *    - Headers: Add "Authorization: Bearer YOUR_CRON_SECRET"
+ * 
+ * 4. Set CRON_SECRET in your environment variables
  */
+
+// =================== CONFIGURATION CONSTANTS ====================
+
 // Default number of deals to fetch per source
 const DEFAULT_LIMIT = 10;
 const DEFAULT_RSS_LIMIT = 5;
 
-// CheapShark API endpoints
+// CheapShark API settings
 const CHEAPSHARK_API_URL = 'https://www.cheapshark.com/api/1.0';
 const CHEAPSHARK_DEALS_ENDPOINT = `${CHEAPSHARK_API_URL}/deals`;
 const CHEAPSHARK_STORES_ENDPOINT = `${CHEAPSHARK_API_URL}/stores`;
 
-// Minimum savings percentage to consider a deal worth including
-const MIN_SAVINGS_PERCENT = 20;
+// Deal filtering criteria
+const MIN_SAVINGS_PERCENT = 20;    // Minimum savings to be considered a good deal
+const MAX_PRICE_FILTER = 15;       // Maximum price to include in deals ($15)
+const DEAL_LIMIT = 10;             // Default number of deals to fetch per request
+
+// =================== PUBLIC API HANDLERS ====================
 
 /**
- * API Route: /api/fetch-deals
+ * GET handler - Manual trigger for fetching and storing deals
  * 
- * This handler fetches the latest game deals from CheapShark API,
- * processes them into a structured format, and saves them to Firestore.
- * It focuses specifically on Steam deals (storeID=1) under $15.
- */
-
-// Number of deals to fetch and display
-const DEAL_LIMIT = 10;
-
-/**
- * GET handler for the /api/fetch-deals endpoint
- * 
- * Fetches game deals from CheapShark API, processes them,
- * and saves them to Firebase Firestore database.
- * 
- * @param request - The incoming request
- * @returns A JSON response with the fetched and processed deals
+ * This endpoint allows manual testing of the deal fetching process.
+ * It's not meant to be called regularly in production.
  */
 export async function GET(request: Request) {
-  console.log('Processing GET request to /api/fetch-deals');
+  console.log('📊 Processing GET request to /api/fetch-deals (manual)');
   
   try {
     // 1. Fetch deals from CheapShark API
@@ -51,11 +63,11 @@ export async function GET(request: Request) {
     const processedDeals = deals.map(processDeal);
     
     // 3. Save the processed deals to Firestore
-    console.log(`Saving ${processedDeals.length} deals to Firestore...`);
+    console.log(`💾 Saving ${processedDeals.length} deals to Firestore...`);
     const success = await saveDealsToDb(processedDeals);
     
     if (!success) {
-      console.error('Failed to save deals to Firestore');
+      console.error('❌ Failed to save deals to Firestore');
       return NextResponse.json({ 
         error: 'Database error', 
         message: 'Failed to save deals to database' 
@@ -70,7 +82,7 @@ export async function GET(request: Request) {
       timestamp: new Date().toISOString()
     });
   } catch (error) {
-    console.error('Error in fetch-deals API route:', error);
+    console.error('❌ Error in fetch-deals API route:', error);
     return NextResponse.json({ 
       error: 'API error',
       message: error instanceof Error ? error.message : 'Unknown error',
@@ -79,131 +91,11 @@ export async function GET(request: Request) {
 }
 
 /**
- * Fetches deals from the CheapShark API
+ * POST handler - Automated cron job trigger for fetching and storing deals
  * 
- * Makes a request to the CheapShark API to fetch Steam deals under $15,
- * limited to the most recent deals.
- * 
- * @returns Promise resolving to an array of raw game deals
- */
-async function fetchCheapSharkDeals(): Promise<any[]> {
-  // Build the API URL with the specified parameters
-  const apiUrl = new URL(CHEAPSHARK_DEALS_ENDPOINT);
-  
-  // Add query parameters as specified in requirements
-  apiUrl.searchParams.append('storeID', '1'); // Steam store
-  apiUrl.searchParams.append('upperPrice', '15'); // Under $15
-  apiUrl.searchParams.append('pageSize', DEAL_LIMIT.toString()); // Limit to 10 deals
-  apiUrl.searchParams.append('sortBy', 'recent'); // Sort by most recent
-  
-  console.log(`Fetching deals from: ${apiUrl.toString()}`);
-  
-  // Make the API request
-  const response = await fetch(apiUrl.toString(), {
-    method: 'GET',
-    headers: { 'Accept': 'application/json' },
-    next: { revalidate: 3600 } // Cache for 1 hour
-  });
-  
-  // Check if the request was successful
-  if (!response.ok) {
-    throw new Error(`CheapShark API error: ${response.status} ${response.statusText}`);
-  }
-  
-  // Parse the response as JSON
-  const deals = await response.json();
-  console.log(`Received ${deals.length} deals from CheapShark API`);
-  
-  return deals;
-}
-
-/**
- * Processes a raw deal into our application format
- * 
- * Extracts and formats the relevant information from a raw CheapShark deal.
- * 
- * @param deal - Raw deal data from CheapShark API
- * @returns Processed deal in our application's format
- */
-function processDeal(deal: any): GameDealFromAPI {
-  // Generate a unique ID
-  const uniqueId = deal.dealID;
-  
-  // Create a SEO-friendly slug from the title
-  const slug = generateSlug(deal.title);
-  
-  // Current timestamp
-  const now = new Date();
-  
-  // Construct affiliate link
-  const affiliateUrl = `https://www.cheapshark.com/redirect?dealID=${deal.dealID}`;
-  
-  // Format prices with dollar sign
-  const originalPrice = `$${parseFloat(deal.normalPrice).toFixed(2)}`;
-  const dealPrice = deal.isOnSale === '0' ? 'Free' : `$${parseFloat(deal.salePrice).toFixed(2)}`;
-  
-  // Calculate savings percentage
-  const savingsPercent = Math.round(parseFloat(deal.savings));
-  
-  // Create a descriptive message for the deal
-  const description = `${deal.title} is now available on Steam for ${dealPrice}! Save ${savingsPercent}% off the original price of ${originalPrice}.`;
-  
-  // Return the processed deal
-  return {
-    id: uniqueId,
-    title: deal.title,
-    dealID: deal.dealID,
-    slug: slug,
-    imageUrl: deal.thumb,
-    description: description,
-    originalPrice: originalPrice,
-    dealPrice: dealPrice,
-    affiliateUrl: affiliateUrl,
-    storeID: '1', // Steam
-    storeName: 'Steam',
-    savings: deal.savings,
-    metacriticScore: deal.metacriticScore,
-    steamRatingPercent: deal.steamRatingPercent,
-    steamRatingCount: deal.steamRatingCount,
-    platform: 'PC',
-    datePosted: now.toISOString(),
-    dateAdded: now.toISOString(),
-    source: 'api',
-    sourceType: 'cheapshark'
-  };
-}
-
-/**
- * Generates a SEO-friendly slug from a title
- * 
- * Converts a game title into a URL-friendly string by:
- * 1. Converting to lowercase
- * 2. Removing special characters
- * 3. Replacing spaces with hyphens
- * 4. Removing leading/trailing hyphens
- * 5. Limiting the length
- * 
- * @param title - The game title
- * @returns A SEO-friendly slug
- */
-function generateSlug(title: string): string {
-  return title
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-') // Replace non-alphanumeric with hyphens
-    .replace(/^-+|-+$/g, '')     // Remove leading/trailing hyphens
-    .replace(/-{2,}/g, '-')      // Replace multiple consecutive hyphens with a single one
-    .slice(0, 50);               // Limit length for readability
-}
-
-/**
- * POST handler for the /api/fetch-deals endpoint
- * 
- * This handler is specifically designed for Vercel Cron Jobs.
- * It verifies the request is authenticated with the CRON_SECRET,
- * then processes the deal fetching and storage.
- * 
- * @param request - The incoming request from Vercel Cron
- * @returns A JSON response with the result
+ * This endpoint is designed to be triggered by a Vercel cron job.
+ * It verifies the request is authenticated with CRON_SECRET,
+ * then fetches and stores deals from multiple sources.
  */
 export async function POST(request: Request) {
   console.log('🔒 Processing POST request to /api/fetch-deals (cron job)');
@@ -242,9 +134,9 @@ export async function POST(request: Request) {
     
     console.log(`📊 Cron job fetch limits: CheapShark=${cronLimit}, RSS=${rssLimit}`);
     
-    // Fetch deals from both sources in parallel
+    // Fetch deals from multiple sources in parallel
     const [cheapSharkDeals, rssDeals] = await Promise.all([
-      fetchCheapSharkDeals(),
+      fetchCheapSharkDeals(20, 25), // Fetch more deals with higher savings threshold for cron job
       fetchRSSFeeds(rssLimit)
     ]);
     
@@ -252,8 +144,11 @@ export async function POST(request: Request) {
     const fetchDuration = (Date.now() - startTime) / 1000;
     console.log(`⏱️ Cron job fetch completed in ${fetchDuration.toFixed(2)} seconds`);
     
+    // Process the CheapShark deals
+    const processedCheapSharkDeals = cheapSharkDeals.map(processDeal);
+    
     // Combine all deals and sort by date (newest first)
-    const allDeals = [...cheapSharkDeals, ...rssDeals]
+    const allDeals = [...processedCheapSharkDeals, ...rssDeals]
       .sort((a, b) => new Date(b.datePosted).getTime() - new Date(a.datePosted).getTime());
     
     // Add batch information for tracking in the database
@@ -285,7 +180,7 @@ export async function POST(request: Request) {
       cronJob: true,
       count: allDeals.length,
       sources: {
-        cheapshark: cheapSharkDeals.length,
+        cheapshark: processedCheapSharkDeals.length,
         rss: {
           total: rssDeals.length,
           humble: rssDeals.filter(deal => deal.sourceType === 'humble').length,
@@ -305,16 +200,159 @@ export async function POST(request: Request) {
   }
 }
 
+// =================== HELPER FUNCTIONS ====================
+
+/**
+ * Fetches deals from the CheapShark API
+ * 
+ * @param limit - Number of deals to fetch (default: DEAL_LIMIT)
+ * @param minSavings - Minimum savings percentage to include (default: MIN_SAVINGS_PERCENT) 
+ * @returns Promise resolving to an array of raw game deals
+ */
+async function fetchCheapSharkDeals(limit = DEAL_LIMIT, minSavings = MIN_SAVINGS_PERCENT): Promise<any[]> {
+  // Build the API URL with the specified parameters
+  const apiUrl = new URL(CHEAPSHARK_DEALS_ENDPOINT);
+  
+  // Add query parameters for filtering deals
+  apiUrl.searchParams.append('storeID', '1'); // Steam store
+  apiUrl.searchParams.append('upperPrice', MAX_PRICE_FILTER.toString()); // Under $15
+  apiUrl.searchParams.append('pageSize', limit.toString()); // Limit number of deals
+  apiUrl.searchParams.append('sortBy', 'recent'); // Sort by most recent
+  apiUrl.searchParams.append('onSale', 'true'); // Only include deals on sale
+  apiUrl.searchParams.append('steamAppID', '1'); // Has Steam App ID
+  
+  // Only include deals with significant savings
+  if (minSavings > 0) {
+    apiUrl.searchParams.append('lowerPrice', '0.01'); // Exclude free games for savings filter
+    apiUrl.searchParams.append('steamRating', '50'); // Only games with decent ratings
+    apiUrl.searchParams.append('metacritic', '70'); // Only games with decent Metacritic scores
+  }
+  
+  console.log(`🔍 Fetching deals from: ${apiUrl.toString()}`);
+  
+  // Make the API request
+  const response = await fetch(apiUrl.toString(), {
+    method: 'GET',
+    headers: { 'Accept': 'application/json' },
+    next: { revalidate: 3600 } // Cache for 1 hour
+  });
+  
+  // Check if the request was successful
+  if (!response.ok) {
+    throw new Error(`CheapShark API error: ${response.status} ${response.statusText}`);
+  }
+  
+  // Parse the response as JSON
+  const deals = await response.json();
+  console.log(`📦 Received ${deals.length} deals from CheapShark API`);
+  
+  // Apply additional filtering if needed
+  let filteredDeals = deals;
+  if (minSavings > 0) {
+    filteredDeals = deals.filter(deal => parseFloat(deal.savings) >= minSavings);
+    console.log(`⚡ Filtered down to ${filteredDeals.length} deals with savings ≥ ${minSavings}%`);
+  }
+  
+  return filteredDeals;
+}
+
+/**
+ * Processes a raw deal into our application format
+ * 
+ * @param deal - Raw deal data from CheapShark API
+ * @returns Processed deal in our application's format
+ */
+function processDeal(deal: Record<string, any>): GameDealFromAPI {
+  try {
+    // Generate a unique ID
+    const uniqueId = deal.dealID;
+    
+    // Create a SEO-friendly slug from the title
+    const slug = generateSlug(deal.title);
+    
+    // Current timestamp
+    const now = new Date();
+    
+    // Construct affiliate link - attempt to use detectStore safely
+    let affiliateUrl = `https://www.cheapshark.com/redirect?dealID=${deal.dealID}`;
+    try {
+      const storeConfig = detectStore(deal.storeID || '1');
+      if (storeConfig && storeConfig.affiliateUrlPattern) {
+        // Use store-specific affiliate URL pattern if available
+        affiliateUrl = generateAffiliateUrl(
+          deal.dealID,
+          deal.storeID || '1', 
+          deal.steamAppID || '',
+          undefined
+        );
+      }
+    } catch (error) {
+      console.warn(`⚠️ Error generating affiliate URL: ${error}. Using default URL.`);
+    }
+    
+    // Format prices with dollar sign
+    const originalPrice = `$${parseFloat(deal.normalPrice).toFixed(2)}`;
+    const dealPrice = parseFloat(deal.salePrice) === 0 ? 'Free' : `$${parseFloat(deal.salePrice).toFixed(2)}`;
+    
+    // Calculate savings percentage
+    const savingsPercent = Math.round(parseFloat(deal.savings));
+    
+    // Get store name safely
+    let storeName = 'Unknown Store';
+    try {
+      storeName = getStoreName(deal.storeID) || 'Unknown Store';
+    } catch (error) {
+      console.warn(`⚠️ Error getting store name: ${error}`);
+    }
+    
+    // Create a descriptive message for the deal
+    const description = `${deal.title} is now available on ${storeName} for ${dealPrice}! Save ${savingsPercent}% off the original price of ${originalPrice}.`;
+    
+    // Return the processed deal
+    return {
+      id: uniqueId,
+      title: deal.title,
+      dealID: deal.dealID,
+      slug: slug,
+      imageUrl: deal.thumb,
+      description: description,
+      originalPrice: originalPrice,
+      dealPrice: dealPrice,
+      affiliateUrl: affiliateUrl,
+      storeID: deal.storeID || '1', // Default to Steam
+      storeName: storeName,
+      savings: deal.savings,
+      metacriticScore: deal.metacriticScore,
+      steamRatingPercent: deal.steamRatingPercent,
+      steamRatingCount: deal.steamRatingCount,
+      platform: 'PC',
+      datePosted: now.toISOString(),
+      dateAdded: now.toISOString(),
+      source: 'api',
+      sourceType: 'cheapshark'
+    };
+  } catch (error) {
+    console.error(`❌ Error processing deal: ${error}`, { deal });
+    throw new Error(`Failed to process deal: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Generates a SEO-friendly slug from a title
+ * 
+ * @param title - The game title
+ * @returns A SEO-friendly slug
+ */
+function generateSlug(title: string): string {
+  if (!title) return `game-${Date.now()}`;
+  
+  return title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-') // Replace non-alphanumeric with hyphens
+    .replace(/^-+|-+$/g, '')     // Remove leading/trailing hyphens
+    .replace(/-{2,}/g, '-')      // Replace multiple consecutive hyphens with a single one
+    .slice(0, 50);               // Limit length for readability
+}
+
 // Ensure this route is not cached
-export const dynamic = 'force-dynamic';
-
-// Define storeId before using it
-const storeId = '1'; // Example store ID, replace with actual logic
-
-try {
-  const storeConfig = detectStore(storeId);
-  // Use storeConfig as needed
-} catch (error) {
-  console.error('Error using detectStore:', error);
-  // Handle error or use fallback
-} 
+export const dynamic = 'force-dynamic'; 
