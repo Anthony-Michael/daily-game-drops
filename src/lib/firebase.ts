@@ -69,7 +69,8 @@ export const fetchDealsFromDb = async (limit = 6): Promise<GameDealFromAPI[]> =>
       .limit(limit)
       .get();
     
-    return snapshot.docs.map(doc => ({
+    // Serialize the Firestore documents to handle timestamp objects
+    return snapshot.docs.map(doc => serializeFirestoreDocument({
       id: doc.id,
       ...doc.data(),
     })) as GameDealFromAPI[];
@@ -99,6 +100,7 @@ export const saveDealsToDb = async (deals: Partial<GameDealFromAPI>[]): Promise<
         batchId: batchId,
         // Add additional fields for querying and filtering
         searchableTitle: deal.title?.toLowerCase(),
+        // Store these as native Firestore timestamps
         dealActiveTimestamp: timestamp,
         // Add a TTL field to automatically expire old deals
         expiresAt: new Date(timestamp.getTime() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
@@ -117,5 +119,54 @@ export const saveDealsToDb = async (deals: Partial<GameDealFromAPI>[]): Promise<
     return false;
   }
 };
+
+/**
+ * Serializes a Firestore document to make it safe for transmission to client components
+ * Converts Firestore Timestamps to ISO string dates
+ */
+export function serializeFirestoreDocument(document: any): any {
+  if (!document || typeof document !== 'object') return document;
+
+  // Handle arrays
+  if (Array.isArray(document)) {
+    return document.map(item => serializeFirestoreDocument(item));
+  }
+
+  // Create a new object to hold the serialized values
+  const serialized: Record<string, any> = {};
+  
+  // Process each key in the document
+  for (const [key, value] of Object.entries(document)) {
+    // Check if the value is a Firestore Timestamp (has _seconds and _nanoseconds)
+    if (
+      value && 
+      typeof value === 'object' && 
+      '_seconds' in value && 
+      '_nanoseconds' in value && 
+      typeof (value as any)._seconds === 'number'
+    ) {
+      // Convert to an ISO string representation
+      try {
+        // Convert to a JavaScript date first
+        const seconds = (value as any)._seconds;
+        const date = new Date(seconds * 1000);
+        // Then to ISO string
+        serialized[key] = date.toISOString();
+      } catch (error) {
+        console.error(`Error serializing timestamp field ${key}:`, error);
+        // Fallback to a reasonable default
+        serialized[key] = new Date().toISOString();
+      }
+    } else if (value && typeof value === 'object') {
+      // Recursively handle nested objects
+      serialized[key] = serializeFirestoreDocument(value);
+    } else {
+      // Pass through primitive values unchanged
+      serialized[key] = value;
+    }
+  }
+  
+  return serialized;
+}
 
 export { db }; 

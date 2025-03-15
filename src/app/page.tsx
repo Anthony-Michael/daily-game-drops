@@ -60,6 +60,7 @@ export default async function Page() {
     // Only use Firestore deals if we got some results
     if (firestoreDeals && firestoreDeals.length > 0) {
       console.log(`Successfully loaded ${firestoreDeals.length} deals from Firestore`);
+      // Data is already serialized by fetchDealsFromDb via serializeFirestoreDocument
       deals = firestoreDeals;
     } else {
       console.log("No deals found in Firestore, using static data");
